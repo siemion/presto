@@ -566,7 +566,10 @@ int main(int argc, char *argv[])
          } else if (strcmp(scope, "geocenter") == 0) {
              strcpy(obs, "EC");
              strcpy(search.telescope, "Geocenter");
-         } else {
+         } else if (strcmp(scope, "ata") == 0) {
+             strcpy(obs, "AT");
+             strcpy(search.telescope, "ATA");         
+	} else {
              printf("\nWARNING!!!:  I don't recognize the observatory (%s)!\n",
                     idata.telescope);
              printf("                 Defaulting to the Geocenter for TEMPO.\n");
