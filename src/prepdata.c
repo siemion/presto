@@ -593,8 +593,9 @@ int main(int argc, char *argv[])
          ttoa[ii] = tlotoa + TDT * ii / SECPERDAY;
 
       /* Call TEMPO for the barycentering */
-      printf("Generating barycentric corrections...\n");
+      printf("Generating barycentric corrections for RA: %s DEC: %s obs:%s...\n", rastring, decstring, obs);
       barycenter(ttoa, btoa, voverc, numbarypts, rastring, decstring, obs, ephem);
+
       for (ii = 0; ii < numbarypts; ii++) {
          if (voverc[ii] > maxvoverc)
             maxvoverc = voverc[ii];

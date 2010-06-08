@@ -116,7 +116,11 @@ static char *telescope_name(int telescope_id)
       strcpy(string, "Effelsberg");
       Tdiam = 100.0;
       break;
-   default:
+   case 10:
+      strcpy(string, "ATA");
+      Tdiam = 6.5;  /* single dish */
+      break;
+    default:
       strcpy(string, "???????");
       break;
    }
@@ -153,6 +157,18 @@ static char *backend_name(int machine_id)
    case 7:
       strcpy(string, "SPIGOT");
       break;
+   case 9:
+     strcpy(string,"PARSPEC");
+     break;
+   case 10:
+     strcpy(string,"BPSR");
+     break;
+   case 11:
+     strcpy(string,"FLYEYE");
+     break;
+   case 12:
+     strcpy(string,"MLMKURTOSIS");
+     break;
    default:
       strcpy(string, "????");
       break;
