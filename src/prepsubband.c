@@ -14,7 +14,7 @@
 #define RAWDATA (cmd->pkmbP || cmd->bcpmP || cmd->wappP || cmd->gmrtP || cmd->spigotP || cmd->filterbankP || cmd->psrfitsP)
 
 /* This causes the barycentric motion to be calculated once per TDT sec */
-#define TDT 10.0
+#define TDT 20.0
 
 /* Simple linear interpolation macro */
 #define LININTERP(X, xlo, xhi, ylo, yhi) ((ylo)+((X)-(xlo))*((yhi)-(ylo))/((xhi)-(xlo)))
@@ -337,16 +337,6 @@ int main(int argc, char *argv[])
          rewind(infiles[0]);
          PKMB_hdr_to_inf(&hdr, &idata);
          PKMB_update_infodata(numinfiles, &idata);
-         /* OBS code for TEMPO */
-         if (!strcmp(idata.telescope, "Parkes"))
-            strcpy(obs, "PK");
-         else if (!strcmp(idata.telescope, "Jodrell"))
-            strcpy(obs, "JB");
-         else {
-            printf
-                ("\nWARNING!!!:  I don't recognize the observatory (%s)!",
-                 idata.telescope);
-         }
       }
 
       /* Set-up values if we are using the GMRT Phased Array system */
@@ -358,8 +348,6 @@ int main(int argc, char *argv[])
          GMRT_hdr_to_inf(argv[1], &idata);
          GMRT_update_infodata(numinfiles, &idata);
          set_GMRT_padvals(padvals, good_padvals);
-         /* OBS code for TEMPO for the GMRT */
-         strcpy(obs, "GM");
       }
 
       /* Set-up values if we are using SIGPROC filterbank-style data */
@@ -405,8 +393,6 @@ int main(int argc, char *argv[])
                            &ptsperblock, &numchan, &dt, &T, &idata, 1);
          BPP_update_infodata(numinfiles, &idata);
          set_BPP_padvals(padvals, good_padvals);
-         /* OBS code for TEMPO */
-         strcpy(obs, "GB");
       }
 
       /* Set-up values if we are using the NRAO-Caltech Spigot card */
@@ -422,15 +408,12 @@ int main(int argc, char *argv[])
                               &T, &idata, 1);
          SPIGOT_update_infodata(numinfiles, &idata);
          set_SPIGOT_padvals(padvals, good_padvals);
-         /* OBS code for TEMPO for the GBT */
-         strcpy(obs, "GB");
          free(spigots);
       }
 
       /* Set-up values if we are using search-mode PSRFITS data */
       if (cmd->psrfitsP) {
          struct spectra_info s;
-         char scope[40];
          
          printf("PSRFITS input file information:\n");
           // -1 causes the data to determine if we use weights, scales, & offsets
@@ -447,21 +430,6 @@ int main(int argc, char *argv[])
                                &s, &idata, 1);
          PSRFITS_update_infodata(&idata);
          set_PSRFITS_padvals(padvals, good_padvals);
-         strncpy(scope, idata.telescope, 40);
-         strlower(scope);
-         /* OBS codes for TEMPO */
-         if (!strcmp(scope, "parkes")) {
-            strcpy(obs, "PK");
-         } else if (!strcmp(scope, "jodrell")) {
-            strcpy(obs, "JB");
-         } else if (!strcmp(scope, "gbt")) {
-            strcpy(obs, "GB");
-         } else if (!strcmp(scope, "arecibo")) {
-            strcpy(obs, "AO");
-         } else {
-            printf("\nWARNING!!!:  I don't recognize the observatory (%s)!",
-                   idata.telescope);
-         }
       }
 
       /* Set-up values if we are using the Arecobo WAPP */
@@ -472,8 +440,6 @@ int main(int argc, char *argv[])
                             &numchan, &dt, &T, &idata, 1);
          WAPP_update_infodata(numinfiles, &idata);
          set_WAPP_padvals(padvals, good_padvals);
-         /* OBS code for TEMPO */
-         strcpy(obs, "AO");
       }
 
       /* Finish setting up stuff common to all raw formats */
@@ -517,6 +483,13 @@ int main(int argc, char *argv[])
       worklen = blocklen * blocksperread;
       /* The number of topo to bary time points to generate with TEMPO */
       numbarypts = (int) (T * 1.1 / TDT + 5.5) + 1;
+   }
+
+   // Identify the TEMPO observatory code
+   {
+       char *outscope = (char *) calloc(40, sizeof(char));
+       telescope_to_tempocode(idata.telescope, outscope, obs);
+       free(outscope);
    }
 
    if (cmd->nsub > numchan) {

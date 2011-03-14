@@ -17,6 +17,8 @@ bin/downsample
 bin/dump_spigot_zerolag
 bin/exploredat
 bin/explorefft
+bin/fitsdelcol
+bin/fitsdelrow
 bin/makedata
 bin/makeinf
 bin/mjd2cal
@@ -27,6 +29,7 @@ bin/prepdata
 bin/prepfold
 bin/prepsubband
 bin/psrorbit
+bin/psrfits_dumparrays
 bin/quicklook
 bin/readfile
 bin/realfft
@@ -52,3 +55,4 @@ lib/python/presto/
 python/build/
 src/slalib/sla_test
 src/makewisdom
+src/fftw_wisdom.txt
