@@ -15,10 +15,11 @@ int read_resid_rec(FILE * file, double *toa, double *obsf)
 /* the file resid2.tmp which is written by TEMPO.       */
 /* It returns 1 if successful, 0 if unsuccessful.       */
 {
-   static int l;
+   //static int l;
+   static long l;
    static double d[9];
 
-   fread(&l, sizeof(int), 1, file);
+   fread(&l, sizeof(long), 1, file);
    fread(&d, sizeof(double), 9, file);
    //printf("Barycentric TOA = %17.10f\n", d[0]);
    //printf("Postfit residual (pulse phase) = %g\n", d[1]);
@@ -31,7 +32,7 @@ int read_resid_rec(FILE * file, double *toa, double *obsf)
    //printf("??? = %g\n\n", d[8]);
    *toa = d[0];
    *obsf = d[4];
-   return fread(&l, sizeof(int), 1, file);
+   return fread(&l, sizeof(long), 1, file);
 }
 
 void barycenter(double *topotimes, double *barytimes,
@@ -172,6 +173,7 @@ void barycenter(double *topotimes, double *barytimes,
    /* rename("itoa.out", "itoa2.out"); */
    /* rename("bary.tmp", "bary2.tmp"); */
    /* rename("bary.par", "bary2.par"); */
+   
 
    remove("tempo.lis");
    remove("tempoout_times.tmp");
@@ -180,4 +182,5 @@ void barycenter(double *topotimes, double *barytimes,
    remove("bary.tmp");
    remove("matrix.tmp");
    remove("bary.par");
+   
 }
