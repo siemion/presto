@@ -118,10 +118,10 @@ static char *telescope_name(int telescope_id)
       Tdiam = 100.0;
       break;
    case 9:
-      strcpy(string, "ATA");
+      strcpy(string, "UTR-2");
       break;
    case 10:
-      strcpy(string, "UTR-2");
+      strcpy(string, "ATA");
       break;
    default:
       strcpy(string, "???????");

@@ -160,7 +160,7 @@ def guess_DMstep(DM, dt, BW, f_ctr):
         Choose a reasonable DMstep by setting the maximum smearing across the
         'BW' to equal the sampling time 'dt'.
     """
-    return dt*0.0001205*f_ctr**3.0/(0.5*BW)
+    return dt*0.0001205*f_ctr**3.0/(BW)
 
 def subband_smear(subDMstep, numsub, BW, f_ctr):
     """
@@ -196,7 +196,7 @@ def dm_steps(loDM, hiDM, obs, numsub=0, ok_smearing=0.0, device="/XWIN"):
         use the best values based only on the data.
     """
     # Allowable DM stepsizes
-    allow_dDMs = [0.01, 0.02, 0.03, 0.05, 0.1, 0.2, 0.3, 0.5, 1.0,
+    allow_dDMs = [0.001, 0.01, 0.02, 0.03, 0.05, 0.1, 0.2, 0.3, 0.5, 1.0,
                   2.0, 3.0, 5.0, 10.0, 20.0, 30.0, 50.0, 100.0, 200.0, 300.0]
     # Allowable number of downsampling factors
     allow_downsamps = [1, 2, 4, 8, 16, 32, 64]
