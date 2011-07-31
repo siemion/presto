@@ -314,6 +314,8 @@ int main(int argc, char *argv[])
          strcpy(obs, "GM");
       } else if (!strcmp(idata.telescope, "ATA")) {
          strcpy(obs, "AT");     /*Allen Telescope Array*/
+      } else if (!strcmp(idata.telescope, "Leuschner")) {
+         strcpy(obs, "LO");     /*Leuschner Observatory*/
       } else {
          printf("\nYou need to choose a telescope whose data is in\n");
          printf("$TEMPO/obsys.dat.  Exiting.\n\n");

@@ -38,13 +38,19 @@ void filterbank_update_infodata(int numfiles, infodata *idata);
 int skip_to_filterbank_rec(FILE *infiles[], int numfiles, int rec);
 int read_filterbank_rawblock(FILE *infiles[], int numfiles, unsigned char *data, 
 			     int *padding);
+int read_filterbank_rawblock_f(FILE * infiles[], int numfiles,
+                             float *data, int *padding);
 int read_filterbank_rawblocks(FILE *infiles[], int numfiles, unsigned char rawdata[], 
 			      int numblocks, int *padding);
+int read_filterbank_rawblocks_f(FILE *infiles[], int numfiles, float rawdata[], 
+			      int numblocks, int *padding);			      
 int read_filterbank(FILE *infiles[], int numfiles, float *data, int numpts, 
 		    double *dispdelays, int *padding, int *maskchans, 
 		    int *nummasked, mask *obsmask);
 void get_filterbank_channel(int channum, float chandat[], unsigned char rawdata[], 
 			    int numblocks);
+void get_filterbank_channel_f(int channum, float chandat[], float rawdata[], 
+			    int numblocks);			    
 int prep_filterbank_subbands(unsigned char *rawdata, float *data, double *dispdelays, 
 			     int numsubbands, int transpose, int *maskchans, 
 			     int *nummasked, mask *obsmask);
@@ -52,3 +58,5 @@ int read_filterbank_subbands(FILE *infiles[], int numfiles, float *data,
 			     double *dispdelays, int numsubbands, int transpose, 
 			     int *padding, int *maskchans, int *nummasked, mask *obsmask);
 void convert_filterbank_block(int *indata, unsigned char *outdata);
+void convert_filterbank_block_f(int *indata, float *outdata);
+

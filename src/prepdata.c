@@ -887,10 +887,10 @@ int main(int argc, char *argv[])
       if (numremoved)
          printf("  Bins removed for barycentering:  %d\n", numremoved);
    }
-   printf("           Maximum value of data:  %.2f\n", max);
-   printf("           Minimum value of data:  %.2f\n", min);
-   printf("              Data average value:  %.2f\n", avg);
-   printf("         Data standard deviation:  %.2f\n", sqrt(var));
+   printf("           Maximum value of data:  %.12f\n", max);
+   printf("           Minimum value of data:  %.12f\n", min);
+   printf("              Data average value:  %.12f\n", avg);
+   printf("         Data standard deviation:  %.12f\n", sqrt(var));
    if (cmd->shortsP && offset != 0)
       printf("          Offset applied to data:  %d\n", -offset);
    printf("\n");

@@ -64,6 +64,7 @@ int main(int argc, char *argv[])
    float inttime, norm, fracterror = RFI_FRACTERROR;
    float *offsets, *nextoffsets;
    unsigned char *rawdata = NULL, **bytemask = NULL;
+   float *frawdata = NULL;
    short *srawdata = NULL;
    char *outfilenm, *statsfilenm, *maskfilenm;
    char *bytemaskfilenm, *rfifilenm;
@@ -422,10 +423,16 @@ int main(int argc, char *argv[])
       if (cmd->pkmbP)
          rawdata = gen_bvect(DATLEN * blocksperint);
       else if (cmd->bcpmP || cmd->spigotP || cmd->wappP || cmd->gmrtP
-               || cmd->filterbankP || cmd->psrfitsP)
+               || cmd->filterbankP || cmd->psrfitsP) {
          /* This allocates extra incase both IFs were stored */
-         rawdata = gen_bvect(idata.num_chan * ptsperblock * blocksperint);
-      else if (insubs)
+         if(atoi(idata.notes) != 32) {
+         	rawdata = gen_bvect(idata.num_chan * ptsperblock * blocksperint);
+		 } else {
+	         frawdata = gen_fvect(idata.num_chan * ptsperblock * blocksperint);		 
+		 }
+		 //printf("ptperbytes_st = %d\n",atoi(idata.notes));
+         
+      } else if (insubs)
          srawdata = gen_svect(idata.num_chan * ptsperblock * blocksperint);
       dataavg = gen_fmatrix(numint, numchan);
       datastd = gen_fmatrix(numint, numchan);
@@ -480,10 +487,15 @@ int main(int argc, char *argv[])
          else if (cmd->gmrtP)
             numread = read_GMRT_rawblocks(infiles, numfiles,
                                           rawdata, blocksperint, &padding);
-         else if (cmd->filterbankP)
-            numread = read_filterbank_rawblocks(infiles, numfiles,
+         else if (cmd->filterbankP){
+         	if(atoi(idata.notes) != 32) {
+            	numread = read_filterbank_rawblocks(infiles, numfiles,
                                                 rawdata, blocksperint, &padding);
-         else if (insubs)
+			} else {
+            	numread = read_filterbank_rawblocks_f(infiles, numfiles,
+                                                frawdata, blocksperint, &padding);			
+			}
+         } else if (insubs)
             numread = read_subband_rawblocks(infiles, numfiles,
                                              srawdata, blocksperint, &padding);
 
@@ -508,9 +520,14 @@ int main(int argc, char *argv[])
                get_PSRFITS_channel(jj, chandata, rawdata, blocksperint);
             else if (cmd->gmrtP)
                get_GMRT_channel(jj, chandata, rawdata, blocksperint);
-            else if (cmd->filterbankP)
-               get_filterbank_channel(jj, chandata, rawdata, blocksperint);
-            else if (insubs)
+            else if (cmd->filterbankP){
+			   if(atoi(idata.notes) != 32) {
+               		get_filterbank_channel(jj, chandata, rawdata, blocksperint);
+               } else {
+	               get_filterbank_channel_f(jj, chandata, frawdata, blocksperint);				  
+	           }
+
+            } else if (insubs)
                get_subband(jj, chandata, srawdata, blocksperint);
 
             /* Adjust the channels based on the offsets */

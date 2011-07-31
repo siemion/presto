@@ -130,8 +130,7 @@ int new_clip_times(unsigned char *rawdata, int ptsperblk, int numchan,
 
    return clipped;
 }
-
-
+                    
 /* OLD Clipping Routine (uses channel medians) */
 int clip_times(unsigned char *rawdata, int ptsperblk, int numchan,
                float clip_sigma, unsigned char *good_chan_levels)

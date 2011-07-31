@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import bisect, os, sys, getopt, infodata, glob
+import bisect, os, sys, getopt, infodata, glob, MySQLdb
 import scipy, scipy.signal, ppgplot
 import numpy as Num
 from presto import rfft
@@ -223,6 +223,8 @@ def main():
                       help="Process the files from this glob expression")
     parser.add_option("-f", "--fast", action="store_true", dest="fast",
                       default=False, help="Use a faster method of de-trending (2x speedup)")
+    parser.add_option("-i", "--id", type="int", dest="obsid",
+                      default=0, help="enter an observation id")
     (opts, args) = parser.parse_args()
     if len(args)==0:
         if opts.globexp==None:
@@ -248,6 +250,8 @@ def main():
 
     max_downfact = 30
     default_downfacts = [2, 3, 4, 6, 9, 14, 20, 30, 45, 70, 100, 150]
+
+
 
     if args[0].endswith(".singlepulse"):
         filenmbase = args[0][:args[0].rfind(".singlepulse")]
@@ -454,11 +458,21 @@ def main():
 
             # Write the pulses to an ASCII output file
             if len(dm_candlist):
+                conn = MySQLdb.connect (host = "localhost", user = "root", passwd = "ibmthinkpad", db = "flyseye")
+                cursor = conn.cursor ()
                 #dm_candlist.sort(cmp_sigma)
                 outfile.write("# DM      Sigma      Time (s)     Sample    Downfact\n")
                 for cand in dm_candlist:
                     outfile.write(str(cand))
+                    sql = "INSERT INTO presto (obsid, dm, sigma, time, sample, downfact) VALUES (%10d, %7.2f, %7.2f, %13.6f, %10d, %3d)" % (opts.obsid, cand.DM, cand.sigma, cand.time, cand.bin, cand.downfact)
+                    cursor.execute (sql)				
+                cursor.close ()
+                conn.close ()
             outfile.close()
+
+            #row = cursor.fetchone ()
+            #print "server version:", row[0]
+
 
             # Add these candidates to the overall candidate list
             for cand in dm_candlist:
@@ -473,18 +487,21 @@ def main():
         snrs = []
         for cand in candlist:
             snrs.append(cand.sigma)
-            if cand.sigma > maxsnr:
+            #print "  snr%f"%cand.sigma
+            if cand.sigma > maxsnr and cand.sigma < 2e9:
                 maxsnr = cand.sigma
-        maxsnr = min(maxsnr,2e9)
+        	#print "update %f"%cand.sigma
+	maxsnr = min(maxsnr,2e9)
         maxsnr = int(maxsnr) + 3
-
+	#print "  Found %d pulse candidates"%maxsnr
         # Generate the SNR histogram
         snrs = Num.asarray(snrs)
         (num_v_snr, lo_snr, d_snr, num_out_of_range) = \
                     scipy.stats.histogram(snrs,
                                           int(maxsnr-opts.threshold+1),
                                           [opts.threshold, maxsnr])
-        snrs = Num.arange(maxsnr-opts.threshold+1, dtype=Num.float64) * d_snr \
+        #print "  Found %d pulse candidates"%maxsnr
+	snrs = Num.arange(maxsnr-opts.threshold+1, dtype=Num.float64) * d_snr \
                + lo_snr + 0.5*d_snr
         num_v_snr = num_v_snr.astype(Num.float32)
         num_v_snr[num_v_snr==0.0] = 0.001
@@ -508,7 +525,7 @@ def main():
             else:
                 ppgplot.pgopen(short_filenmbase+'_singlepulse.ps/VPS')
         ppgplot.pgpap(7.5, 1.0)  # Width in inches, aspect
-
+        ppgplot.pgscf(2)
         # plot the SNR histogram
         ppgplot.pgsvp(0.06, 0.31, 0.6, 0.87)
         ppgplot.pgswin(opts.threshold, maxsnr,

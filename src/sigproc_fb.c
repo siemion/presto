@@ -15,8 +15,11 @@ static double *times_st, *mjds_st, Tdiam=100.0;
 static double *elapsed_st, T_st, dt_st;
 static double *startblk_st, *endblk_st;
 static unsigned char padvals[MAXNUMCHAN], padval = 128;
+static float fpadvals[MAXNUMCHAN];
+
 static int rawdatabuffer[MAXNUMCHAN * BLOCKLEN];
 static unsigned char databuffer[MAXNUMCHAN * BLOCKLEN];
+static float databuffer_f[MAXNUMCHAN * BLOCKLEN];
 static int currentfile, currentblock;
 static int bufferpts = 0, padnum = 0, shiftbuffer = 1;
 static float clip_sigma_st = 0.0;
@@ -25,6 +28,23 @@ static int ptperbytes_st = 1;
 
 /* Note:  Much of this has been ripped out of SIGPROC      */
 /* and then slightly modified.  Thanks Dunc!               */
+
+void swap_floats( float *pf ) /* includefile */
+{
+  unsigned char t;
+  unsigned char *pc;
+
+  pc = (unsigned char *)pf;
+
+  t = pc[0];
+  pc[0] = pc[3];
+  pc[3] = t;
+
+  t = pc[1];
+  pc[1] = pc[2];
+  pc[2] = t;
+}
+
 
 static void send_string(char *string, FILE * outfile)
 {
@@ -36,6 +56,7 @@ static void send_string(char *string, FILE * outfile)
 
 static void get_string(FILE * inputfile, int *nbytes, char string[])
 {
+/*
    int nchar;
    strcpy(string, "ERROR");
    chkfread(&nchar, sizeof(int), 1, inputfile);
@@ -45,6 +66,18 @@ static void get_string(FILE * inputfile, int *nbytes, char string[])
    chkfread(string, nchar, 1, inputfile);
    string[nchar] = '\0';
    *nbytes += nchar;
+*/
+
+  int nchar;
+  strcpy(string,"ERROR");
+  chkfread(&nchar, sizeof(int), 1, inputfile);
+  *nbytes=sizeof(int);
+  if (feof(inputfile)) exit(0);
+  if (nchar>80 || nchar<1) return;
+  chkfread(string, nchar, 1, inputfile);
+  string[nchar]='\0';
+  *nbytes+=nchar;
+
 }
 
 static int strings_equal(char *string1, char *string2)
@@ -123,6 +156,9 @@ static char *telescope_name(int telescope_id)
    case 10:
       strcpy(string, "ATA");
       break;
+   case 11:
+      strcpy(string, "Leuschner");
+      break;
    default:
       strcpy(string, "???????");
       break;
@@ -171,6 +207,9 @@ static char *backend_name(int machine_id)
      break;
    case 12:
      strcpy(string,"MLMKURTOSIS");
+     break;
+   case 13:
+     strcpy(string,"LSPEC");
      break;
    default:
       strcpy(string, "????");
@@ -274,6 +313,7 @@ int read_filterbank_header(sigprocfb * fb, FILE * inputfile)
    /* loop over and read remaining header lines until HEADER_END reached */
    while (1) {
       get_string(inputfile, &nbytes, string);
+      //printf("nbytes: %d totalbytes: %d\n",nbytes, totalbytes);
       if (strings_equal(string, "HEADER_END"))
          break;
       totalbytes += nbytes;
@@ -358,6 +398,7 @@ int read_filterbank_header(sigprocfb * fb, FILE * inputfile)
    fb->headerlen = totalbytes;
    /* Calculate the number of samples in the file */
    fb->N = (chkfilelen(inputfile, 1) - fb->headerlen) / fb->nchans * 8 / fb->nbits;
+   //printf("GOT: %d\n", totalbytes);
    return totalbytes;
 }
 
@@ -421,15 +462,15 @@ void set_filterbank_static(int ptsperblk, int bytesperpt, int bytesperblk,
 }
 
 
-void set_filterbank_padvals(float *fpadvals, int good_padvals)
+void set_filterbank_padvals(float *flpadvals, int good_padvals)
 {
    int ii;
    float sum_padvals = 0.0;
 
    if (good_padvals) {
       for (ii = 0; ii < numchan_st; ii++) {
-         padvals[ii] = (unsigned char) (fpadvals[ii] + 0.5);
-         sum_padvals += fpadvals[ii];
+         padvals[ii] = (unsigned char) (flpadvals[ii] + 0.5);
+         sum_padvals += flpadvals[ii];
       }
       padval = (unsigned char) (sum_padvals / numchan_st + 0.5);
    } else {
@@ -473,14 +514,15 @@ void sigprocfb_to_inf(sigprocfb * fb, infodata * idata)
    strcpy(idata->band, "Radio");
    strcpy(idata->analyzer, "Scott Ransom");
    strcpy(idata->observer, "Unknown");
-   sprintf(idata->notes, "Input filterbank samples have %d bits.\n", fb->nbits);
+   sprintf(idata->notes, "%d", fb->nbits);
 }
 
 
 void get_filterbank_file_info(FILE * files[], int numfiles, float clipsig,
                               long long *N, int *ptsperblock, int *numchan,
                               double *dt, double *T, int output)
-/* Read basic information into static variables and make padding        */
+/* Read basic 
+into static variables and make padding        */
 /* calculations for a set of filterbank rawfiles that you want to patch */
 /* together.  N, numchan, dt, and T are return values and include all   */
 /* the files with the required padding.  If output is true, prints      */
@@ -510,6 +552,11 @@ void get_filterbank_file_info(FILE * files[], int numfiles, float clipsig,
       printf("\nThe number of bits per sample (%d)",fb_st[0].nbits);
       ptperbytes_st = 2;
    }
+   if (fb_st[0].nbits == 32) {
+      printf("\nThe number of bits per sample (%d)",fb_st[0].nbits);
+      ptperbytes_st = 32;
+   }
+   
    sigprocfb_to_inf(fb_st + 0, idata_st + 0);
    chkfseek(files[0], fb_st[0].headerlen, SEEK_SET);
    if (clipsig > 0.0)
@@ -517,7 +564,11 @@ void get_filterbank_file_info(FILE * files[], int numfiles, float clipsig,
    *numchan = numchan_st = idata_st[0].num_chan;
    *ptsperblock = ptsperblk_st = BLOCKLEN;
    sampperblk_st = ptsperblk_st * numchan_st;
-   bytesperblk_st = sampperblk_st / ptperbytes_st;
+   if(ptperbytes_st == 32) {
+   	bytesperblk_st = sampperblk_st * 4;
+   } else {
+   	bytesperblk_st = sampperblk_st / ptperbytes_st;
+   }
    numblks_st[0] = chkfilelen(files[0], bytesperblk_st);
    numpts_st[0] = numblks_st[0] * ptsperblk_st;
    N_st = numpts_st[0];
@@ -772,6 +823,122 @@ int read_filterbank_rawblock(FILE * infiles[], int numfiles,
 }
 
 
+int read_filterbank_rawblock_f(FILE * infiles[], int numfiles,
+                             float *data, int *padding)
+/* This routine reads a single record from the     */
+/* input files *infiles which contain 32 bit float */
+/* data in SIGPROC filterbank format.              */
+/* If padding is returned as 1, then padding was   */
+/* added and statistics should not be calculated   */
+{
+   int offset, numtopad = 0;
+   float *dataptr = data;
+   //float *tester;
+   float sampval;
+   int ii = 0;
+   /* If our buffer array is offset from last time */
+   /* copy the second part into the first.         */
+
+   if (bufferpts) {
+      offset = bufferpts * numchan_st * 4;
+      dataptr = databuffer_f + offset;
+      if (shiftbuffer)
+         memcpy(databuffer_f, databuffer_f + sampperblk_st, offset);
+   }
+   shiftbuffer = 1;
+
+   /* Make sure our current file number is valid */
+
+   if (currentfile >= numfiles)
+      return 0;
+
+   /* First, attempt to read data from the current file */
+   if (chkfread((unsigned char *) rawdatabuffer, bytesperblk_st, 1, infiles[currentfile])) {    /* Got Data */
+      /* See if we need to byte-swap and if so, doit */
+      
+      if (need_byteswap_st) {
+         /* Need to add this later */
+      }
+    /*     
+      printf("bytes: %d\n", bytesperblk_st);       
+      float *tester = (float *) rawdatabuffer;
+      for(ii = 0; ii < 512; ii=ii+1){
+			//swap_floats(tester+ii);
+			memcpy(&sampval, tester+ii, 4);
+         	printf("%f\n", sampval);
+		}
+      unsigned char *tester2 = (unsigned char *)rawdatabuffer;
+      for(ii = 0; ii < 512; ii=ii+1){
+			
+         	printf("%02x\n", tester2[ii]);
+		}
+	  */	
+		
+      convert_filterbank_block_f(rawdatabuffer, dataptr);
+	
+      *padding = 0;
+      /* Put the new data into the databuffer if needed */
+      if (bufferpts)
+         memcpy(data, databuffer_f, sampperblk_st*4);
+      currentblock++;
+      return 1;
+   } else {                     /* Didn't get data */
+      if (feof(infiles[currentfile])) { /* End of file? */
+         numtopad = padpts_st[currentfile] - padnum;
+         if (numtopad) {        /* Pad the data? */
+            *padding = 1;
+            if (numtopad >= ptsperblk_st - bufferpts) { /* Lots of padding */
+               if (bufferpts) { /* Buffer the padding? */
+                  /* Add the amount of padding we need to */
+                  /* make our buffer offset = 0           */
+                  numtopad = ptsperblk_st - bufferpts;
+                  for(ii=0;ii < (numtopad * numchan_st);ii++) dataptr[ii] = padval;
+                  
+                  //memset(dataptr, padval, numtopad * numchan_st);
+                  /* Copy the new data/padding into the output array */
+                  memcpy(data, databuffer_f, sampperblk_st * 4);
+                  bufferpts = 0;
+               } else {         /* Add a full record of padding */
+                  numtopad = ptsperblk_st;
+                  //memset(data, padval, sampperblk_st);
+                  for(ii=0;ii < (sampperblk_st);ii++) dataptr[ii] = padval;
+               }
+               padnum += numtopad;
+               currentblock++;
+               /* If done with padding reset padding variables */
+               if (padnum == padpts_st[currentfile]) {
+                  padnum = 0;
+                  currentfile++;
+               }
+               return 1;
+            } else {            /* Need < 1 block (or remaining block) of padding */
+               int pad;
+               /* Add the remainder of the padding and */
+               /* then get a block from the next file. */
+               //memset(databuffer + bufferpts * numchan_st, padval, numtopad * numchan_st);
+			   for(ii=(bufferpts * numchan_st);ii < (numtopad * numchan_st);ii++) dataptr[ii] = padval;
+               bufferpts += numtopad;
+               padnum = 0;
+               shiftbuffer = 0;
+               currentfile++;
+               return read_filterbank_rawblock_f(infiles, numfiles, data, &pad);
+            }
+         } else {               /* No padding needed.  Try reading the next file */
+            currentfile++;
+            shiftbuffer = 0;
+            return read_filterbank_rawblock_f(infiles, numfiles, data, padding);
+         }
+      } else {
+         printf("\nProblem reading record from filterbank data file:\n");
+         printf("   currentfile = %d, currentblock = %d.  Exiting.\n",
+                currentfile, currentblock);
+         exit(1);
+      }
+   }
+}
+
+
+
 int read_filterbank_rawblocks(FILE * infiles[], int numfiles,
                               unsigned char rawdata[], int numblocks, int *padding)
 /* This routine reads numblocks filterbank records from the input */
@@ -802,6 +969,37 @@ int read_filterbank_rawblocks(FILE * infiles[], int numfiles,
    return retval;
 }
 
+int read_filterbank_rawblocks_f(FILE * infiles[], int numfiles,
+                              float rawdata[], int numblocks, int *padding)
+/* This routine reads numblocks filterbank records from the input */
+/* files *infiles.  The 8-bit filterbank data is returned   */
+/* in rawdata which must have a size of numblocks*          */
+/* sampperblk_st.  The number  of blocks read is returned.  */
+/* If padding is returned as 1, then padding was added      */
+/* and statistics should not be calculated                  */
+{
+   int ii, retval = 0, pad, numpad = 0;
+
+   *padding = 0;
+   for (ii = 0; ii < numblocks; ii++) {
+      retval += read_filterbank_rawblock_f(infiles, numfiles,
+                                         rawdata + ii * sampperblk_st, &pad);
+      if (pad)
+         numpad++;
+   }
+   /* Return padding 'true' if more than */
+   /* half of the blocks are padding.    */
+   /* 
+      if (numpad > numblocks / 2)
+      *padding = 1;
+    */
+   /* Return padding 'true' if any block was padding */
+   if (numpad)
+      *padding = 1;
+   return retval;
+}
+
+
 
 int read_filterbank(FILE * infiles[], int numfiles, float *data,
                     int numpts, double *dispdelays, int *padding,
@@ -818,14 +1016,18 @@ int read_filterbank(FILE * infiles[], int numfiles, float *data,
 /* The # of channels masked is returned in nummasked.  */
 /* obsmask is the mask structure to use for masking.   */
 {
-   int ii, jj, numread = 0, offset;
+   int ii, jj, kk, numread = 0, offset;
    double starttime = 0.0;
-   static unsigned char *tempzz, *rawdata1, *rawdata2;
-   static unsigned char *currentdata, *lastdata;
    static int firsttime = 1, numblocks = 1, allocd = 0, mask = 0;
    static double duration = 0.0, timeperblk = 0.0;
 
    *nummasked = 0;
+   
+if(ptperbytes_st != 32) {   
+   
+   static unsigned char *tempzz, *rawdata1, *rawdata2;
+   static unsigned char *currentdata, *lastdata;
+   
    if (firsttime) {
       if (numpts % ptsperblk_st) {
          printf("numpts must be a multiple of %d in read_filterbank()!\n",
@@ -855,9 +1057,10 @@ int read_filterbank(FILE * infiles[], int numfiles, float *data,
          }
 
          /* Clip nasty RFI if requested and we're not masking all the channels */
-         if ((clip_sigma_st > 0.0) && !(mask && (*nummasked == -1)))
+         if ((clip_sigma_st > 0.0) && !(mask && (*nummasked == -1))){
             clip_times(currentdata, numpts, numchan_st, clip_sigma_st, padvals);
-
+		 	//printf("clipping...\n");
+		 }
          if (mask) {
             if (*nummasked == -1) {     /* If all channels are masked */
                for (ii = 0; ii < numpts; ii++)
@@ -890,6 +1093,82 @@ int read_filterbank(FILE * infiles[], int numfiles, float *data,
    } else {
       return 0;
    }
+} else {
+   static float *tempzz, *rawdata1, *rawdata2;
+   static float *currentdata, *lastdata;
+	//printf("processing 32bit data\n");
+	/* 32 bit input */
+   if (firsttime) {
+      if (numpts % ptsperblk_st) {
+         printf("numpts must be a multiple of %d in read_filterbank()!\n",
+                ptsperblk_st);
+         exit(1);
+      } else
+         numblocks = numpts / ptsperblk_st;
+      if (obsmask->numchan)
+         mask = 1;
+      rawdata1 = gen_fvect(numblocks * sampperblk_st);
+      rawdata2 = gen_fvect(numblocks * sampperblk_st);
+      allocd = 1;
+      timeperblk = ptsperblk_st * dt_st;
+      duration = numblocks * timeperblk;
+      currentdata = rawdata1;
+      lastdata = rawdata2;
+   }
+
+   /* Read, convert and de-disperse */
+   if (allocd) {
+      while (1) {
+         numread = read_filterbank_rawblocks_f(infiles, numfiles, currentdata,
+                                             numblocks, padding);
+         if (mask) {
+            starttime = currentblock * timeperblk;
+            *nummasked = check_mask(starttime, duration, obsmask, maskchans);
+         }
+
+         /* Clip nasty RFI if requested and we're not masking all the channels */
+         if ((clip_sigma_st > 0.0) && !(mask && (*nummasked == -1))){
+         	//printf("clipping...\n");
+            subs_clip_times(currentdata, numpts, numchan_st, clip_sigma_st, fpadvals);
+		 }
+         if (mask) {
+            if (*nummasked == -1) {     /* If all channels are masked */
+               for (ii = 0; ii < numpts; ii++){ 
+               
+                  		for(kk=0;kk < numchan_st;kk++) currentdata[ii * numchan_st + kk] =  fpadvals[kk];
+            		}
+            } else if (*nummasked > 0) {        /* Only some of the channels are masked */
+               int channum;
+               for (ii = 0; ii < numpts; ii++) {
+                  offset = ii * numchan_st;
+                  for (jj = 0; jj < *nummasked; jj++) {
+                     channum = maskchans[jj];
+                     currentdata[offset + channum] = fpadvals[channum];
+                  }
+               }
+            }
+         }
+         if (!firsttime)
+            dedisp_f(currentdata, lastdata, numpts, numchan_st, dispdelays, data);
+         SWAP(currentdata, lastdata);
+         if (numread != numblocks) {
+            free(rawdata1);
+            free(rawdata2);
+            allocd = 0;
+         }
+         if (firsttime)
+            firsttime = 0;
+         else
+            break;
+      }
+      return numblocks * ptsperblk_st;
+   } else {
+      return 0;
+   }
+
+
+}
+
 }
 
 
@@ -905,7 +1184,27 @@ void get_filterbank_channel(int channum, float chandat[],
    int ii, jj;
 
    if (channum > numchan_st || channum < 0) {
-      printf("\nchannum = %d is out of range in get_GMR_channel()!\n\n", channum);
+      printf("\nchannum = %d is out of range in get_filterbank_channel()!\n\n", channum);
+      exit(1);
+   }
+   /* Select the correct channel */
+   for (ii = 0, jj = channum; ii < numblocks * ptsperblk_st; ii++, jj += numchan_st)
+      chandat[ii] = rawdata[jj];
+}
+
+void get_filterbank_channel_f(int channum, float chandat[],
+                            float rawdata[], int numblocks)
+/* Return the values for channel 'channum' of a block of       */
+/* 'numblocks' raw filterbank data stored in 'rawdata' in 'chandat'. */
+/* 'rawdata' should have been initialized using                */
+/* read_filterbank_rawblocks(), and 'chandat' must have at least     */
+/* 'numblocks' * 'ptsperblk_st' spaces.                        */
+/* Channel 0 is assumed to be the lowest freq channel.         */
+{
+   int ii, jj;
+
+   if (channum > numchan_st || channum < 0) {
+      printf("\nchannum = %d is out of range in get_filterbank_channel_f()!\n\n", channum);
       exit(1);
    }
    /* Select the correct channel */
@@ -999,6 +1298,91 @@ int prep_filterbank_subbands(unsigned char *rawdata, float *data,
    }
 }
 
+int prep_filterbank_subbands_f(float *rawdata_f, float *data,
+                             double *dispdelays, int numsubbands,
+                             int transpose, int *maskchans,
+                             int *nummasked, mask * obsmask)
+/* This routine preps a block from from the filterbank system.  It uses         */
+/* dispersion delays in 'dispdelays' to de-disperse the data into         */
+/* 'numsubbands' subbands.  It stores the resulting data in vector 'data' */
+/* of length 'numsubbands' * 'ptsperblk_st'.  The low freq subband is     */
+/* stored first, then the next highest subband etc, with 'ptsperblk_st'   */
+/* floating points per subband. It returns the # of points read if        */
+/* succesful, 0 otherwise.  'maskchans' is an array of length numchans    */
+/* which contains a list of the number of channels that were masked.  The */
+/* # of channels masked is returned in 'nummasked'.  'obsmask' is the     */
+/* mask structure to use for masking.  If 'transpose'==0, the data will   */
+/* be kept in time order instead of arranged by subband as above.         */
+{
+   int ii, jj, trtn, offset;
+   double starttime = 0.0;
+   static float *tempzz;
+   static float rawdata1[MAXNUMCHAN * BLOCKLEN],
+       rawdata2[MAXNUMCHAN * BLOCKLEN];
+   static float *currentdata, *lastdata; 
+   static unsigned char *move;
+   static int firsttime = 1, move_size = 0, mask = 0;
+   static double timeperblk = 0.0;
+
+   *nummasked = 0;
+   if (firsttime) {
+      if (obsmask->numchan)
+         mask = 1;
+      move_size = (ptsperblk_st + numsubbands) / 2;
+      move = gen_bvect(move_size*4);
+      currentdata = rawdata1;
+      lastdata = rawdata2;
+      timeperblk = ptsperblk_st * dt_st;
+   }
+
+   /* Read and de-disperse */
+   memcpy(currentdata, rawdata_f, sampperblk_st*4);
+   if (mask) {
+      starttime = currentblock * timeperblk;
+      *nummasked = check_mask(starttime, timeperblk, obsmask, maskchans);
+   }
+
+   /* Clip nasty RFI if requested and we're not masking all the channels*/
+   if ((clip_sigma_st > 0.0) && !(mask && (*nummasked == -1)))
+      subs_clip_times(currentdata, ptsperblk_st, numchan_st, clip_sigma_st, fpadvals);
+
+   if (mask) {
+      if (*nummasked == -1) {   /* If all channels are masked */
+         for (ii = 0; ii < ptsperblk_st; ii++)
+            memcpy(currentdata + ii * numchan_st, padvals, numchan_st);
+      } else if (*nummasked > 0) {      /* Only some of the channels are masked */
+         int channum;
+         for (ii = 0; ii < ptsperblk_st; ii++) {
+            offset = ii * numchan_st*4;
+            for (jj = 0; jj < *nummasked; jj++) {
+               channum = maskchans[jj];
+               currentdata[offset + channum] = padvals[channum];
+            }
+         }
+      }
+   }
+
+   /* In mpiprepsubband, the nodes do not call read_*_rawblock() */
+   /* where currentblock gets incremented.                       */
+   if (using_MPI) currentblock++;
+
+   if (firsttime) {
+      SWAP(currentdata, lastdata);
+      firsttime = 0;
+      return 0;
+   } else {
+      dedisp_subbands_f(currentdata, lastdata, ptsperblk_st, numchan_st,
+                      dispdelays, numsubbands, data);
+      SWAP(currentdata, lastdata);
+      /* Transpose the data into vectors in the result array */
+      if (transpose) {
+         if ((trtn = transpose_float(data, ptsperblk_st, numsubbands,
+                                     move, move_size)) < 0)
+            printf("Error %d in transpose_float().\n", trtn);
+      }
+      return ptsperblk_st;
+   }
+}
 
 int read_filterbank_subbands(FILE * infiles[], int numfiles, float *data,
                              double *dispdelays, int numsubbands,
@@ -1020,9 +1404,16 @@ int read_filterbank_subbands(FILE * infiles[], int numfiles, float *data,
 /* to use for masking.  If 'transpose'==0, the data will be kept */
 /* in time order instead of arranged by subband as above.        */
 {
+
    static int firsttime = 1;
+   //printf("reading subbands\n");
+   //printf("numchan: %d, ptsperblk, %d, ptperbytes_st, %d\n", numchan_st, ptsperblk_st, ptperbytes_st);
+   
+if(ptperbytes_st != 32) {
+
    static unsigned char rawdata[MAXNUMCHAN * BLOCKLEN];
 
+/* do the usual 8 bit stuff */
    if (firsttime) {
       if (!read_filterbank_rawblock(infiles, numfiles, rawdata, padding)) {
          printf("Problem reading the raw filterbank data file.\n\n");
@@ -1041,6 +1432,34 @@ int read_filterbank_subbands(FILE * infiles[], int numfiles, float *data,
    }
    return prep_filterbank_subbands(rawdata, data, dispdelays, numsubbands,
                                    transpose, maskchans, nummasked, obsmask);
+} else {
+/* process 32 bit floating point filterbank data */
+   static float rawdata_f[MAXNUMCHAN * BLOCKLEN];
+
+   if (firsttime) {
+      if (!read_filterbank_rawblock_f(infiles, numfiles, rawdata_f, padding)) {
+         printf("Problem reading the raw filterbank data file.\n\n");
+         return 0;
+      }
+      if (0 != prep_filterbank_subbands_f(rawdata_f, data, dispdelays, numsubbands,
+                                        transpose, maskchans, nummasked, obsmask)) {
+         printf("Problem initializing prep_filterbank_subbands()\n\n");
+         return 0;
+      }
+      firsttime = 0;
+   }
+   if (!read_filterbank_rawblock_f(infiles, numfiles, rawdata_f, padding)) {
+      /* printf("Problem reading the raw filterbank data file.\n\n"); */
+      return 0;
+   }
+   return prep_filterbank_subbands_f(rawdata_f, data, dispdelays, numsubbands,
+                                   transpose, maskchans, nummasked, obsmask);
+
+}
+
+
+
+
 }
 
 
@@ -1048,17 +1467,29 @@ void convert_filterbank_block(int *indata, unsigned char *outdata)
 /* This routine converts SIGPROC filterbank-format data into PRESTO format */
 {
    int ii, jj, samp_ct, offset;
+   unsigned char c;
+   unsigned char *chardata = (unsigned char *) indata;  
+  	
+  	if (ptperbytes_st == 1) {
 
-   if (ptperbytes_st == 1) {
+	  /*   
+ 	  printf("numchan: %d, ptsperblk, %d, ptperbytes_st, %d\n", numchan_st, ptsperblk_st, ptperbytes_st);
       unsigned char *chardata = (unsigned char *) indata;
+      printf("begin\n");
+      	for(ii = 0; ii < 512; ii=ii + 1){
+			//memcpy(&tempval, chardata + ii, sizeof(float));
+         	printf("%d\n",chardata[ii]);
+		}
+		printf("end\n");
+	  */
       for (samp_ct = 0; samp_ct < ptsperblk_st; samp_ct++) {
          offset = samp_ct * numchan_st;
          for (ii = 0, jj = numchan_st - 1; ii < numchan_st; ii++, jj--)
             outdata[ii + offset] = chardata[jj + offset];
       }
+      
    } else if (ptperbytes_st == 2) {
-      unsigned char c;
-      unsigned char *chardata = (unsigned char *) indata;
+
       for (samp_ct = 0; samp_ct < ptsperblk_st; samp_ct++) {
          offset = samp_ct * numchan_st;
          for (ii = 0, jj = numchan_st/2 - 1; ii < numchan_st; ii+=2, jj--) {
@@ -1073,3 +1504,36 @@ void convert_filterbank_block(int *indata, unsigned char *outdata)
       printf("\nYikes!!! Not supposed to be here in convert_filterbank_block()\n\n");
    }
 }
+
+
+void convert_filterbank_block_f(int *indata, float *outdata)
+/* This routine converts SIGPROC filterbank-format data into PRESTO format */
+/* (reverse the frequency order) 							   */
+{
+   int ii, jj, samp_ct, offset;
+   float tempval;
+
+//sampperblk_st = ptsperblk_st * numchan_st;
+	if (ptperbytes_st == 32) {
+      //printf("numchan: %d, ptsperblk, %d\n", numchan_st, ptsperblk_st);
+		float *chardata = (float *) indata;
+      	//printf("begin\n");
+      	//for(ii = 0; ii < 512; ii=ii+4){
+         //	printf("%f\n",chardata[ii]);
+		//}
+		//printf("end\n");
+      for (samp_ct = 0; samp_ct < ptsperblk_st; samp_ct++) {
+         offset = samp_ct * numchan_st;		
+         for (ii = 0, jj = numchan_st - 1; ii < numchan_st; ii++, jj--){
+         	//memcpy(&tempval, chardata + jj + offset, sizeof(float));
+         	//printf("%d %d %f\n",ii,jj,tempval);
+            outdata[ii + offset] = chardata[jj + offset];
+      		}
+      }
+    
+   } else {
+      printf("\nYikes!!! Not supposed to be here in convert_filterbank_block_f()\n\n");
+   }
+}
+
+

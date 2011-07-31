@@ -558,6 +558,16 @@ void dedisp(unsigned char *data, unsigned char *lastdata, int numpts,
 /* Input data are ordered in time, with the channels stored    */
 /* together at each time point.                                */ 
 
+void dedisp_f(float *data, float *lastdata, int numpts,
+	    int numchan, double *dispdelays, float *result);
+/* De-disperse a stretch of *floating point* data with numpts * numchan points. */
+/* The delays (in bins) are in dispdelays for each channel.    */
+/* The result is returned in result.  The input data and       */
+/* dispdelays are always in ascending frequency order.         */
+/* Input data are ordered in time, with the channels stored    */
+/* together at each time point.  identical to dedisp   		   */  
+
+
 double *subband_delays(int numchan, int numsubbands, double dm, 
 		       double lofreq, double chanwidth, 
 		       double voverc);
@@ -588,6 +598,17 @@ double *subband_search_delays(int numchan, int numsubbands, double dm,
 /*   channel in each subband, _not_ the center subband frequency.     */
 
 void dedisp_subbands(unsigned char *data, unsigned char *lastdata,
+		     int numpts, int numchan, double *dispdelays,
+		     int numsubbands, float *result);
+/* De-disperse a stretch of data with numpts * numchan points    */
+/* into numsubbands subbands.  Each time point for each subband  */
+/* is a float in the result array.  The result array order is    */
+/* subbands of increasing frequency together at each time pt.    */
+/* The delays (in bins) are in dispdelays for each channel.      */
+/* The input data and dispdelays are always in ascending         */
+/* frequency order.  Input data are ordered in time, with the    */
+
+void dedisp_subbands_f(float *data, float *lastdata,
 		     int numpts, int numchan, double *dispdelays,
 		     int numsubbands, float *result);
 /* De-disperse a stretch of data with numpts * numchan points    */

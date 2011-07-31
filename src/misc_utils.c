@@ -185,8 +185,11 @@ void telescope_to_tempocode(char *inname, char *outname, char*obscode)
         strcpy(obscode, "GM");
         strcpy(outname, "GMRT");
     } else if (strcmp(scope, "ata") == 0) {
-	strcpy(obscode, "ATA");
-	strcpy(outname, "ATA");
+		strcpy(obscode, "ATA");
+		strcpy(outname, "ATA");
+    } else if (strcmp(scope, "leuschner") == 0) {
+		strcpy(obscode, "LO");
+		strcpy(outname, "Leuschner");
     } else if (strcmp(scope, "geocenter") == 0) {
         strcpy(obscode, "EC");
         strcpy(outname, "Geocenter");
