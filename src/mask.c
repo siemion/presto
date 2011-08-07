@@ -277,7 +277,7 @@ int check_mask(double starttime, double duration, mask * obsmask, int *maskchans
    double endtime;
    static int old_loint = -1, old_hiint = -1, old_numchan = 0;
 
-   /*
+   
       static int firsttime = 1;
       if (firsttime){
       int ii;
@@ -290,7 +290,7 @@ int check_mask(double starttime, double duration, mask * obsmask, int *maskchans
       printf("\n\n");
       firsttime = 0;
       }
-    */
+    
 
    endtime = starttime + duration;
    loint = (int) (starttime / obsmask->dtint);

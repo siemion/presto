@@ -16,6 +16,7 @@ static double *elapsed_st, T_st, dt_st;
 static double *startblk_st, *endblk_st;
 static unsigned char padvals[MAXNUMCHAN], padval = 128;
 static float fpadvals[MAXNUMCHAN];
+static float fpadval;
 
 static int rawdatabuffer[MAXNUMCHAN * BLOCKLEN];
 static unsigned char databuffer[MAXNUMCHAN * BLOCKLEN];
@@ -470,12 +471,15 @@ void set_filterbank_padvals(float *flpadvals, int good_padvals)
    if (good_padvals) {
       for (ii = 0; ii < numchan_st; ii++) {
          padvals[ii] = (unsigned char) (flpadvals[ii] + 0.5);
+         fpadvals[ii] = (flpadvals[ii] + 0.5);
          sum_padvals += flpadvals[ii];
       }
       padval = (unsigned char) (sum_padvals / numchan_st + 0.5);
+      fpadval = (sum_padvals / numchan_st + 0.5);
    } else {
       for (ii = 0; ii < numchan_st; ii++)
          padvals[ii] = padval;
+         fpadvals[ii] = fpadval;
    }
 }
 
@@ -1129,7 +1133,9 @@ if(ptperbytes_st != 32) {
          /* Clip nasty RFI if requested and we're not masking all the channels */
          if ((clip_sigma_st > 0.0) && !(mask && (*nummasked == -1))){
          	//printf("clipping...\n");
-            subs_clip_times(currentdata, numpts, numchan_st, clip_sigma_st, fpadvals);
+            kk = subs_clip_times(currentdata, numpts, numchan_st, clip_sigma_st, fpadvals);
+			//printf("clipped %d values\n", kk);
+
 		 }
          if (mask) {
             if (*nummasked == -1) {     /* If all channels are masked */
@@ -1314,7 +1320,7 @@ int prep_filterbank_subbands_f(float *rawdata_f, float *data,
 /* mask structure to use for masking.  If 'transpose'==0, the data will   */
 /* be kept in time order instead of arranged by subband as above.         */
 {
-   int ii, jj, trtn, offset;
+   int ii, jj, kk, trtn, offset;
    double starttime = 0.0;
    static float *tempzz;
    static float rawdata1[MAXNUMCHAN * BLOCKLEN],
@@ -1343,20 +1349,26 @@ int prep_filterbank_subbands_f(float *rawdata_f, float *data,
    }
 
    /* Clip nasty RFI if requested and we're not masking all the channels*/
-   if ((clip_sigma_st > 0.0) && !(mask && (*nummasked == -1)))
-      subs_clip_times(currentdata, ptsperblk_st, numchan_st, clip_sigma_st, fpadvals);
-
+   if ((clip_sigma_st > 0.0) && !(mask && (*nummasked == -1))){
+         //printf("clipping...\n");
+         kk = subs_clip_times(currentdata, ptsperblk_st, numchan_st, clip_sigma_st, fpadvals);
+		//printf("clipped %d values\n", kk);
+	}
    if (mask) {
       if (*nummasked == -1) {   /* If all channels are masked */
-         for (ii = 0; ii < ptsperblk_st; ii++)
-            memcpy(currentdata + ii * numchan_st, padvals, numchan_st);
+         for (ii = 0; ii < ptsperblk_st; ii++){
+            	for(kk=0;kk < numchan_st;kk++) currentdata[ii * numchan_st + kk] = fpadvals[kk];
+
+            //memcpy(currentdata + ii * numchan_st, padvals, numchan_st);
+            }
       } else if (*nummasked > 0) {      /* Only some of the channels are masked */
+         //printf("Masking...\n");
          int channum;
          for (ii = 0; ii < ptsperblk_st; ii++) {
-            offset = ii * numchan_st*4;
+            offset = ii * numchan_st;
             for (jj = 0; jj < *nummasked; jj++) {
                channum = maskchans[jj];
-               currentdata[offset + channum] = padvals[channum];
+               currentdata[offset + channum] = fpadvals[channum];
             }
          }
       }
